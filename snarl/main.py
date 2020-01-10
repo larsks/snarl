@@ -8,13 +8,8 @@ import tempfile
 from pathlib import Path
 
 LOG = logging.getLogger(__name__)
-
-
-class STATE(enum.Enum):
-    INIT = 0
-    READ_CODEBLOCK = 1
-    READ_FILE = 2
-
+VDEBUG = 5
+logging.addLevelName(VDEBUG, 'VDEBUG')
 
 re_start_codeblock = re.compile(r'^```(?P<lang>\w+)?:(?P<label>\w+)'
                                 r'( ?(?P<hide>hide))?$')
@@ -24,6 +19,17 @@ re_include_block = re.compile(r'^\|(?P<label>\w+)\|$')
 re_end_file = re.compile(r'^:$')
 re_include_file = re.compile(r'^:i(nclude)? (?P<path>\S+)$')
 re_comment = re.compile(r'^:#.*')
+
+
+class STATE(enum.Enum):
+    INIT = 0
+    READ_CODEBLOCK = 1
+    READ_FILE = 2
+
+
+class Context(object):
+    def __init__(self, state=STATE.INIT):
+        self.state = state
 
 
 class Snarl(object):
@@ -63,34 +69,49 @@ class Snarl(object):
         with open(path, 'r') as fd:
             self.parse(fd)
 
+    def process_line(self, line):
+        if line.startswith(':'):
+            if line.startswith('::'):
+                line = line[1:]
+                return (STATE.INIT, line)
+
+        match = re_comment.match(line)
+        if match:
+            return (STATE.INIT, None)
+
+        match = re_start_codeblock.match(line)
+        if match:
+            self.start_codeblock(match)
+            return (STATE.READ_CODEBLOCK, None)
+
+        match = re_start_file.match(line)
+        if match:
+            self.start_file(match)
+            return (STATE.READ_FILE, None)
+
+        match = re_include_file.match(line)
+        if match:
+            self.include_file(match)
+            return (STATE.INIT, None)
+
+        return (STATE.INIT, line)
+
     def parse(self, infd):
         state = STATE.INIT
 
         for ln, line in enumerate(infd):
-            LOG.debug('%d [%s]: %s', ln, state, line.rstrip())
+            LOG.log(VDEBUG, '%s:%d %s | %s', infd.name, ln,
+                    state, line.rstrip())
             if state == STATE.INIT:
-                match = re_comment.match(line)
-                if match:
-                    continue
+                newstate, content = self.process_line(line)
+                if content is not None:
+                    self.outfd.write(content)
 
-                match = re_start_codeblock.match(line)
-                if match:
-                    state = STATE.READ_CODEBLOCK
-                    self.start_codeblock(match)
-                    continue
+                if newstate != state:
+                    LOG.debug('%s -> %s', state, newstate)
+                    state = newstate
 
-                match = re_start_file.match(line)
-                if match:
-                    state = STATE.READ_FILE
-                    self.start_file(match)
-                    continue
-
-                match = re_include_file.match(line)
-                if match:
-                    self.include_file(match)
-                    continue
-
-                self.outfd.write(line)
+                continue
 
             if state == STATE.READ_CODEBLOCK:
                 match = re_end_codeblock.match(line)
@@ -153,7 +174,8 @@ class Snarl(object):
 @click.option('-v', '--verbose', count=True)
 def main(verbose):
     try:
-        loglevel = [logging.WARNING, logging.INFO, logging.DEBUG][verbose]
+        loglevel = [logging.WARNING, logging.INFO,
+                    logging.DEBUG, VDEBUG][verbose]
     except IndexError:
         loglevel = logging.DEBUG
 
