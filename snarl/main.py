@@ -7,6 +7,7 @@ import tempfile
 
 from pathlib import Path
 
+MAX_INCLUDE_DEPTH = 10
 LOG = logging.getLogger(__name__)
 VDEBUG = 5
 logging.addLevelName(VDEBUG, 'VDEBUG')
@@ -27,9 +28,18 @@ class STATE(enum.Enum):
     READ_FILE = 2
 
 
+class SnarlError(Exception):
+    pass
+
+
+class RecursiveIncludeError(SnarlError):
+    pass
+
+
 class Context(object):
-    def __init__(self, state=STATE.INIT):
+    def __init__(self, state=STATE.INIT, depth=0):
         self.state = state
+        self.depth = 0
 
 
 class Snarl(object):
@@ -61,15 +71,13 @@ class Snarl(object):
         filename = match.group('label')
         self._file = self.new_file(filename)
 
-    # XXX: Might want to set a maximum include depth to avoid
-    # crashing due to a recursive :include.
-    def include_file(self, match):
+    def include_file(self, match, depth):
         path = match.group('path')
         LOG.info('including file %s', path)
         with open(path, 'r') as fd:
-            self.parse(fd)
+            self.parse(fd, depth+1)
 
-    def process_line(self, line):
+    def process_line(self, line, depth):
         if line.startswith(':'):
             if line.startswith('::'):
                 line = line[1:]
@@ -91,19 +99,22 @@ class Snarl(object):
 
         match = re_include_file.match(line)
         if match:
-            self.include_file(match)
+            self.include_file(match, depth)
             return (STATE.INIT, None)
 
         return (STATE.INIT, line)
 
-    def parse(self, infd):
+    def parse(self, infd, depth=0):
         state = STATE.INIT
+
+        if depth >= MAX_INCLUDE_DEPTH:
+            raise RecursiveIncludeError(depth)
 
         for ln, line in enumerate(infd):
             LOG.log(VDEBUG, '%s:%d %s | %s', infd.name, ln,
                     state, line.rstrip())
             if state == STATE.INIT:
-                newstate, content = self.process_line(line)
+                newstate, content = self.process_line(line, depth)
                 if content is not None:
                     self.outfd.write(content)
 
