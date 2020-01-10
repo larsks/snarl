@@ -5,6 +5,8 @@ import re
 import sys
 import tempfile
 
+from pathlib import Path
+
 LOG = logging.getLogger(__name__)
 
 
@@ -154,13 +156,14 @@ def main(verbose):
 
 
 @main.command()
+@click.option('-o', '--output-path', type=Path, default=Path('.'))
 @click.option('--no-files', is_flag=True)
 @click.option('-n', '--no-output', is_flag=True)
 @click.option('-f', '--file', 'onlyfile', multiple=True)
 @click.argument('infile',
                 type=click.File(),
                 default=sys.stdin)
-def tangle(no_files, no_output, onlyfile, infile):
+def tangle(output_path, no_files, no_output, onlyfile, infile):
     with infile:
         snarl = Snarl()
         snarl.parse(infile)
@@ -170,8 +173,10 @@ def tangle(no_files, no_output, onlyfile, infile):
             if onlyfile and fn not in onlyfile:
                 continue
 
-            LOG.info('writing file %s', fn)
-            with open(fn, 'w') as fd:
+            fpath = output_path / fn
+
+            LOG.info('writing file %s', fpath)
+            with fpath.open('w') as fd:
                 for line in snarl.generate_file(fn):
                     fd.write(line)
 
