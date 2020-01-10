@@ -22,7 +22,8 @@ re_end_codeblock = re.compile(r'^```$')
 re_start_file = re.compile(r'^:f(ile)? (?P<label>\S+)$')
 re_include_block = re.compile(r'^\|(?P<label>\w+)\|$')
 re_end_file = re.compile(r'^:$')
-re_start_include = re.compile(r'^:i(nclude)? (?P<path>\S+)$')
+re_include_file = re.compile(r'^:i(nclude)? (?P<path>\S+)$')
+re_comment = re.compile(r'^:#.*')
 
 
 class Snarl(object):
@@ -68,6 +69,10 @@ class Snarl(object):
         for ln, line in enumerate(infd):
             LOG.debug('%d [%s]: %s', ln, state, line.rstrip())
             if state == STATE.INIT:
+                match = re_comment.match(line)
+                if match:
+                    continue
+
                 match = re_start_codeblock.match(line)
                 if match:
                     state = STATE.READ_CODEBLOCK
@@ -80,7 +85,7 @@ class Snarl(object):
                     self.start_file(match)
                     continue
 
-                match = re_start_include.match(line)
+                match = re_include_file.match(line)
                 if match:
                     self.include_file(match)
                     continue
