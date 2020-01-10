@@ -20,14 +20,14 @@ re_end_codeblock = re.compile(r'^```$')
 re_start_file = re.compile(r'^:f(ile)? (?P<label>\S+)$')
 re_include_block = re.compile(r'^\|(?P<label>\w+)\|$')
 re_end_file = re.compile(r'^:$')
+re_start_include = re.compile(r'^:i(nclude)? (?P<path>\S+)$')
 
 
 class Snarl(object):
-    def __init__(self, infd):
+    def __init__(self):
         self._files = {}
         self._blocks = {}
 
-        self.infd = infd
         self.outfd = self.new_file('__output__')['fd']
 
     def write_codeblock(self, block):
@@ -52,10 +52,18 @@ class Snarl(object):
         filename = match.group('label')
         self._file = self.new_file(filename)
 
-    def parse(self):
+    # XXX: Might want to set a maximum include depth to avoid
+    # crashing due to a recursive :include.
+    def include_file(self, match):
+        path = match.group('path')
+        LOG.info('including file %s', path)
+        with open(path, 'r') as fd:
+            self.parse(fd)
+
+    def parse(self, infd):
         state = STATE.INIT
 
-        for ln, line in enumerate(self.infd):
+        for ln, line in enumerate(infd):
             LOG.debug('%d [%s]: %s', ln, state, line.rstrip())
             if state == STATE.INIT:
                 match = re_start_codeblock.match(line)
@@ -68,6 +76,11 @@ class Snarl(object):
                 if match:
                     state = STATE.READ_FILE
                     self.start_file(match)
+                    continue
+
+                match = re_start_include.match(line)
+                if match:
+                    self.include_file(match)
                     continue
 
                 self.outfd.write(line)
@@ -149,8 +162,8 @@ def main(verbose):
                 default=sys.stdin)
 def tangle(no_files, no_output, onlyfile, infile):
     with infile:
-        snarl = Snarl(infile)
-        snarl.parse()
+        snarl = Snarl()
+        snarl.parse(infile)
 
     if not no_files:
         for fn in snarl.files:
@@ -172,8 +185,8 @@ def tangle(no_files, no_output, onlyfile, infile):
                 default=sys.stdin)
 def weave(outfile, infile):
     with infile:
-        snarl = Snarl(infile)
-        snarl.parse()
+        snarl = Snarl()
+        snarl.parse(infile)
 
     with outfile:
         for line in snarl.output:
