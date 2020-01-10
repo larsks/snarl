@@ -43,10 +43,10 @@ Include named blocks in the output by enclosing the block name in `|`.
 For example:
 
 ```
-:file somefile.py
+<!-- file somefile.py
 # Here are my imports
 |imports|
-:
+-->
 ```
 
 Assuming we have defined the `imports` block as described earlier, running `snarl tangle` on this file would generate a file named `somefile.py` with the content:

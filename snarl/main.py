@@ -15,11 +15,10 @@ logging.addLevelName(VDEBUG, 'VDEBUG')
 re_start_codeblock = re.compile(r'^```(?P<lang>\w+)?:(?P<label>\w+)'
                                 r'( ?(?P<hide>hide))?$')
 re_end_codeblock = re.compile(r'^```$')
-re_start_file = re.compile(r'^:f(ile)? (?P<label>\S+)$')
+re_start_file = re.compile(r'^<!-- f(ile)? (?P<label>\S+)$')
 re_include_block = re.compile(r'^\|(?P<label>\w+)\|$')
-re_end_file = re.compile(r'^:$')
-re_include_file = re.compile(r'^:i(nclude)? (?P<path>\S+)$')
-re_comment = re.compile(r'^:#.*')
+re_end_file = re.compile(r'^-->$')
+re_include_file = re.compile(r'^<!-- i(nclude)? (?P<path>\S+) -->$')
 
 
 class STATE(enum.Enum):
@@ -82,10 +81,6 @@ class Snarl(object):
             if line.startswith('::'):
                 line = line[1:]
                 return (STATE.INIT, line)
-
-        match = re_comment.match(line)
-        if match:
-            return (STATE.INIT, None)
 
         match = re_start_codeblock.match(line)
         if match:
