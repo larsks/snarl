@@ -187,10 +187,12 @@ def main(verbose):
 @click.option('--no-files', is_flag=True)
 @click.option('-n', '--no-output', is_flag=True)
 @click.option('-f', '--file', 'onlyfile', multiple=True)
+@click.option('-w', '--overwrite', is_flag=True,
+              envvar='SNARL_OVERWRITE')
 @click.argument('infile',
                 type=click.File(),
                 default=sys.stdin)
-def tangle(output_path, no_files, no_output, onlyfile, infile):
+def tangle(output_path, no_files, no_output, onlyfile, overwrite, infile):
     with infile:
         snarl = Snarl()
         snarl.parse(infile)
@@ -201,6 +203,10 @@ def tangle(output_path, no_files, no_output, onlyfile, infile):
                 continue
 
             fpath = output_path / fn
+
+            if fpath.is_file() and not overwrite:
+                LOG.error('refusing to overwrite existing file %s', fpath)
+                continue
 
             LOG.info('writing file %s', fpath)
             with fpath.open('w') as fd:
@@ -223,6 +229,18 @@ def weave(outfile, infile):
     with outfile:
         for line in snarl.output:
             outfile.write(line)
+
+
+@main.command()
+@click.argument('infile',
+                type=click.File(),
+                default=sys.stdin)
+def files(infile):
+    with infile:
+        snarl = Snarl()
+        snarl.parse(infile)
+
+    print('\n'.join(snarl.files))
 
 
 if __name__ == '__main__':
