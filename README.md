@@ -2,6 +2,14 @@
 
 Snarl is a [literate programming][] tool for Markdown documents.  The syntax was inspired by [Anansi][].
 
+## Features
+
+- Literate programming while keeping your markdown editor happy.
+- Label your code blocks for use in generating files.
+- Generate files using named code blocks and verbatim content. Blocks
+  can be assembled out-of-order.
+- Include files to split a large document across multiple files.
+
 ## Syntax
 
 ### Code blocks
@@ -36,7 +44,7 @@ Marking a code block with `hide` will hide it when generating output with `weave
 
 ### Writing files
 
-Declare a file to be written during the `tangle` process using the `:file` directive. The contents between the `:file` directive and the terminating `:` will be written to the named file.
+Declare a file to be written during the `tangle` process using the `file` directive. The contents between the `<!-- file ...` marker and the terminating `-->` will be written to the named file.
 
 Include named blocks in the output by enclosing the block name in `|`.
 
@@ -62,18 +70,10 @@ import sys
 Include files with the `:include` directive:
 
 ```
-:include some_file.md
+<!-- include some_file.md -->
 ```
 
-The contents of the named file will be processed as if they occurred in the main document at the point of the `:include` directive. This means you can include `snarl` syntax in your included files.
-
-### Comments
-
-A line starting with `:#` is ignored.
-
-```
-:# This is a comment.
-```
+The contents of the named file will be processed as if they occurred in the main document at the point of the `<!-- include ... -->` directive. This means you can include `snarl` syntax in your included files.
 
 [literate programming]: https://en.wikipedia.org/wiki/Literate_programming
 [anansi]: https://john-millikin.com/software/anansi
