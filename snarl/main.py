@@ -1,7 +1,9 @@
 import click
 import enum
 import logging
+import argparse
 import re
+import shlex
 import sys
 import tempfile
 
@@ -12,12 +14,9 @@ LOG = logging.getLogger(__name__)
 VDEBUG = 5
 logging.addLevelName(VDEBUG, 'VDEBUG')
 
-re_start_codeblock = re.compile(r'^```(?P<lang>\w+)?:(?P<label>\w+)'
-                                r'( ?(?P<hide>hide))?$')
+re_start_codeblock = re.compile(r'^```(?P<lang>\w+)?=(?P<args>.+)')
 re_end_codeblock = re.compile(r'^```$')
-re_start_file = re.compile(r'^<!-- f(ile)? (?P<label>\S+)$')
-re_include_block = re.compile(r'^\|(?P<label>\w+)\|$')
-re_end_file = re.compile(r'^-->$')
+re_include_block = re.compile(r'^<<(?P<label>.+)>>$')
 re_include_file = re.compile(r'^<!-- i(nclude)? (?P<path>\S+) -->$')
 
 
@@ -43,32 +42,37 @@ class Context(object):
 
 class Snarl(object):
     def __init__(self):
-        self._files = {}
         self._blocks = {}
 
-        self.outfd = self.new_file('__output__')['fd']
+        self.outfd = tempfile.SpooledTemporaryFile(mode='w')
+        self.parser = self.create_argument_parser()
+
+    def create_argument_parser(self):
+        p = argparse.ArgumentParser()
+        p.add_argument('--hide', '-H', action='store_true')
+        p.add_argument('--file', '-f', action='store_true')
+        p.add_argument('--tag', '-t', action='append', default=[])
+        p.add_argument('--lang')
+        p.add_argument('label')
+        return p
+
+    def start_codeblock(self, match):
+        args = shlex.split(match.group('args'))
+        if match.group('lang'):
+            args.extend(['--lang', match.group('lang')])
+        parsed_args = self.parser.parse_args(args)
+
+        LOG.debug('reading codeblock %s', parsed_args.label)
+        self._block = self.new_block(parsed_args.label, parsed_args)
 
     def write_codeblock(self, block):
         block['fd'].seek(0)
-        lang = block['config'].get('lang')
+        lang = block['config'].lang
         self.outfd.write('```{}\n'.format(
             lang if lang is not None else ''
         ))
         self.outfd.write(block['fd'].read())
         self.outfd.write('```\n')
-
-    def start_codeblock(self, match):
-        blockname = match.group('label')
-        LOG.debug('reading codeblock %s', blockname)
-        blockconf = dict(
-            lang=match.group('lang'),
-            hide=match.group('hide')
-        )
-        self._block = self.new_block(blockname, blockconf)
-
-    def start_file(self, match):
-        filename = match.group('label')
-        self._file = self.new_file(filename)
 
     def include_file(self, match, depth):
         path = match.group('path')
@@ -86,11 +90,6 @@ class Snarl(object):
         if match:
             self.start_codeblock(match)
             return (STATE.READ_CODEBLOCK, None)
-
-        match = re_start_file.match(line)
-        if match:
-            self.start_file(match)
-            return (STATE.READ_FILE, None)
 
         match = re_include_file.match(line)
         if match:
@@ -124,7 +123,7 @@ class Snarl(object):
                 if match:
                     state = STATE.INIT
 
-                    if not self._block['config'].get('hide'):
+                    if not self._block['config'].hide:
                         self.write_codeblock(self._block)
 
                     continue
@@ -142,38 +141,41 @@ class Snarl(object):
         if state != STATE.INIT:
             raise ValueError(state)
 
-    def new_file(self, name):
-        LOG.debug('create file %s', name)
-        fd = tempfile.SpooledTemporaryFile(mode='w')
-        self._files[name] = dict(fd=fd)
-        return self._files[name]
-
     def new_block(self, name, config):
         LOG.debug('create block %s', name)
         fd = tempfile.SpooledTemporaryFile(mode='w')
         self._blocks[name] = dict(fd=fd, config=config)
         return self._blocks[name]
 
-    def generate_file(self, name):
-        fd = self._files[name]['fd']
-        fd.seek(0)
-        for line in fd:
-            match = re_include_block.match(line)
-            if match:
-                blockfd = self._blocks[match.group('label')]['fd']
-                blockfd.seek(0)
-                yield from blockfd
-            else:
-                yield line
+    def generate(self, label):
+        def _generate_block(fd):
+            fd.seek(0)
+
+            for line in fd:
+                match = re_include_block.match(line)
+                if match:
+                    blockfd = self._blocks[match.group('label')]['fd']
+                    blockfd.seek(0)
+                    yield from blockfd
+                else:
+                    yield line
+
+        fd = self._blocks[label]['fd']
+        return _generate_block(fd)
+
+    @property
+    def blocks(self):
+        return self._blocks.keys()
 
     @property
     def files(self):
-        return [fn for fn in self._files.keys()
-                if fn != '__output__']
+        return [k for k, v in self._blocks.items()
+                if v['config'].file]
 
     @property
     def output(self):
-        return self.generate_file('__output__')
+        self.outfd.seek(0)
+        return self.outfd
 
 
 @click.group()
@@ -190,34 +192,34 @@ def main(verbose):
 
 @main.command()
 @click.option('-o', '--output-path', type=Path, default=Path('.'))
-@click.option('--no-files', is_flag=True)
-@click.option('-n', '--no-output', is_flag=True)
 @click.option('-f', '--file', 'onlyfile', multiple=True)
 @click.option('-w', '--overwrite', is_flag=True,
               envvar='SNARL_OVERWRITE')
 @click.argument('infile',
                 type=click.File(),
                 default=sys.stdin)
-def tangle(output_path, no_files, no_output, onlyfile, overwrite, infile):
+@click.argument('block', nargs=-1)
+def tangle(output_path, onlyfile, overwrite, infile, block):
     with infile:
         snarl = Snarl()
         snarl.parse(infile)
 
-    if not no_files:
-        for fn in snarl.files:
-            if onlyfile and fn not in onlyfile:
-                continue
+    to_generate = block if block else snarl.files
+    for fn in to_generate:
+        fpath = output_path / fn
 
-            fpath = output_path / fn
+        if fpath.is_file() and not overwrite:
+            LOG.error('refusing to overwrite existing file %s', fpath)
+            continue
 
-            if fpath.is_file() and not overwrite:
-                LOG.error('refusing to overwrite existing file %s', fpath)
-                continue
-
-            LOG.info('writing file %s', fpath)
+        try:
+            src = snarl.generate(fn)
             with fpath.open('w') as fd:
-                for line in snarl.generate_file(fn):
+                LOG.info('writing file %s', fpath)
+                for line in src:
                     fd.write(line)
+        except KeyError:
+            raise click.ClickException(f'No such block named "{fn}"')
 
 
 @main.command()
