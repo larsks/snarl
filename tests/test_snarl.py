@@ -1,8 +1,9 @@
 import io
-import mock
 import pytest
 import random
 import string
+
+from unittest import mock
 
 import snarl.main
 
@@ -47,16 +48,16 @@ def test_include_simple(snarlobj, randomstring):
 
 
 def test_file(snarlobj, randomstring):
-    doc = NamedBuffer('```:block0\n'
+    doc = NamedBuffer('```=block0\n'
                       f'{randomstring}\n'
                       '```\n'
-                      '<!-- file output.txt\n'
-                      '|block0|\n'
-                      '-->')
+                      '```=output.txt --file\n'
+                      '<<block0>>\n'
+                      '```')
 
     snarlobj.parse(doc)
     assert 'output.txt' in snarlobj.files
-    assert randomstring in ''.join(snarlobj.generate_file('output.txt'))
+    assert randomstring in ''.join(snarlobj.generate('output.txt'))
 
 
 def test_lang_block(snarlobj):
@@ -69,9 +70,9 @@ def test_lang_block(snarlobj):
 
 
 def test_hide_block(snarlobj):
-    doc = NamedBuffer('```:block0 hide\n'
-                      'This should not appear in output\n'
+    doc = NamedBuffer('```=block0 --hide\n'
+                      'This should not appear in weave output\n'
                       '```\n')
 
     snarlobj.parse(doc)
-    assert 'This should not appear in output' not in '\n'.join(snarlobj.output)
+    assert 'This should not appear in weave output' not in '\n'.join(snarlobj.output)
