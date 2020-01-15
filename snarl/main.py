@@ -230,15 +230,19 @@ def weave(outfile, infile):
 
 
 @main.command()
+@click.option('--all', '-a', 'show_all_blocks', is_flag=True)
 @click.argument('infile',
                 type=click.File(),
                 default=sys.stdin)
-def files(infile):
+def files(show_all_blocks, infile):
     with infile:
         snarl = Snarl()
         snarl.parse(infile)
 
-    print('\n'.join(snarl.files))
+    if show_all_blocks:
+        print('\n'.join(snarl.blocks))
+    else:
+        print('\n'.join(snarl.files))
 
 
 if __name__ == '__main__':
