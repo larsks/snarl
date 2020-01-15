@@ -52,6 +52,7 @@ class Snarl(object):
         p.add_argument('--hide', '-H', action='store_true')
         p.add_argument('--file', '-f', action='store_true')
         p.add_argument('--tag', '-t', action='append', default=[])
+        p.add_argument('--replace', '-r', nargs=2, action='append', default=[])
         p.add_argument('--lang')
         p.add_argument('label')
         return p
@@ -154,20 +155,21 @@ class Snarl(object):
         return self._blocks[name]
 
     def generate(self, label):
-        def _generate_block(fd):
+        def _generate_block(fd, replaces):
             fd.seek(0)
 
             for line in fd:
                 match = re_include_block.match(line)
                 if match:
-                    blockfd = self._blocks[match.group('label')]['fd']
-                    blockfd.seek(0)
-                    yield from blockfd
+                    yield from self.generate(match.group('label'))
                 else:
+                    for pat, sub in replaces:
+                        LOG.debug('replacing %s with %s in %s', pat, sub, line.strip())
+                        line = re.sub(pat, sub, line)
                     yield line
 
-        fd = self._blocks[label]['fd']
-        return _generate_block(fd)
+        block = self._blocks[label]
+        return _generate_block(block['fd'], block['config'].replace)
 
     @property
     def blocks(self):

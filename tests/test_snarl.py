@@ -83,3 +83,13 @@ def test_append_block(snarlobj):
                      '```'))
     snarlobj.parse(doc)
     assert 'this is line2' in '\n'.join(snarlobj.generate('block0'))
+
+
+def test_replace(snarlobj):
+    doc = '\n'.join(('```=block0 --replace gadgets gizmos',
+                     'An article about gadgets.',
+                     '```'))
+
+    snarlobj.parse(doc)
+    assert 'gizmos' in '\n'.join(snarlobj.generate('block0'))
+                    
