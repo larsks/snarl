@@ -10,6 +10,8 @@ import tempfile
 
 from pathlib import Path
 
+import snarl.exc
+
 MAX_INCLUDE_DEPTH = 10
 LOG = logging.getLogger(__name__)
 VDEBUG = 5
@@ -26,18 +28,15 @@ class STATE(enum.Enum):
     READ_CODEBLOCK = 1
 
 
-class SnarlError(Exception):
-    pass
-
-
-class RecursiveIncludeError(SnarlError):
-    pass
-
-
 class Context(object):
-    def __init__(self, state=STATE.INIT, depth=0):
-        self.state = state
-        self.depth = 0
+    def __init__(self, ln=0, line=None):
+        self.ln = ln
+        self.line = line
+
+
+class BlockArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        raise snarl.exc.BlockArgumentError(message)
 
 
 class Snarl(object):
@@ -46,9 +45,10 @@ class Snarl(object):
 
         self.outfd = tempfile.SpooledTemporaryFile(mode='w')
         self.parser = self.create_argument_parser()
+        self.ctx = Context()
 
     def create_argument_parser(self):
-        p = argparse.ArgumentParser()
+        p = BlockArgumentParser()
         p.add_argument('--hide', '-H', action='store_true')
         p.add_argument('--file', '-f', action='store_true')
         p.add_argument('--tag', '-t', action='append', default=[])
@@ -113,9 +113,12 @@ class Snarl(object):
         oldstate = STATE.INIT
 
         if depth >= MAX_INCLUDE_DEPTH:
-            raise RecursiveIncludeError(depth)
+            raise snarl.exc.RecursiveIncludeError(depth)
 
         for ln, line in enumerate(infd):
+            self.ctx.ln = ln + 1
+            self.ctx.line = line
+
             LOG.log(VDEBUG, '%s:%d %s | %s',
                     infd.name if hasattr(infd, 'name') else '<none>',
                     ln,
@@ -186,6 +189,16 @@ class Snarl(object):
         return self.outfd
 
 
+def parse(infile):
+    try:
+        snarl = Snarl()
+        snarl.parse(infile)
+    except snarl.exc.SnarlError as err:
+        raise click.ClickException(f'Parsing failed at line {snarl.ctx.ln}: {err}')
+    else:
+        return snarl
+
+
 @click.group()
 @click.option('-v', '--verbose', count=True)
 def main(verbose):
@@ -209,8 +222,7 @@ def main(verbose):
 @click.argument('block', nargs=-1)
 def tangle(stdout, output_path, overwrite, infile, block):
     with infile:
-        snarl = Snarl()
-        snarl.parse(infile)
+        snarl = parse(infile)
 
     to_generate = block if block else snarl.files
     for fn in to_generate:
@@ -244,8 +256,7 @@ def tangle(stdout, output_path, overwrite, infile, block):
                 default=sys.stdin)
 def weave(outfile, infile):
     with infile:
-        snarl = Snarl()
-        snarl.parse(infile)
+        snarl = parse(infile)
 
     with outfile:
         for line in snarl.output:
@@ -259,8 +270,7 @@ def weave(outfile, infile):
                 default=sys.stdin)
 def files(show_all_blocks, infile):
     with infile:
-        snarl = Snarl()
-        snarl.parse(infile)
+        snarl = parse(infile)
 
     if show_all_blocks:
         print('\n'.join(snarl.blocks))

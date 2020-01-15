@@ -6,6 +6,7 @@ import string
 from unittest import mock
 
 import snarl.main
+import snarl.exc
 
 
 @pytest.fixture(scope='function')
@@ -29,7 +30,7 @@ def test_include_recursive(snarlobj):
 
     with mock.patch('snarl.main.open', create=True) as mock_open:
         mock_open.side_effect = lambda x, y: doc()
-        with pytest.raises(snarl.main.RecursiveIncludeError):
+        with pytest.raises(snarl.exc.RecursiveIncludeError):
             snarlobj.parse(doc())
 
 
@@ -93,3 +94,11 @@ def test_replace(snarlobj):
     snarlobj.parse(doc)
     assert 'gizmos' in '\n'.join(snarlobj.generate('block0'))
                     
+
+def test_unknown_block_arg(snarlobj):
+    doc = '\n'.join((
+        '```=foo --unknown',
+    ))
+
+    with pytest.raises(snarl.exc.BlockArgumentError):
+        snarlobj.parse(doc)
