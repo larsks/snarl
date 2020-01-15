@@ -1,5 +1,6 @@
 import click
 import enum
+import io
 import logging
 import argparse
 import re
@@ -101,7 +102,12 @@ class Snarl(object):
 
         return (STATE.INIT, line)
 
-    def parse(self, infd, depth=0):
+    def parse(self, src, depth=0):
+        if hasattr(src, 'read'):
+            infd = src
+        else:
+            infd = io.StringIO(src)
+
         state = STATE.INIT
         oldstate = STATE.INIT
 
@@ -109,8 +115,11 @@ class Snarl(object):
             raise RecursiveIncludeError(depth)
 
         for ln, line in enumerate(infd):
-            LOG.log(VDEBUG, '%s:%d %s | %s', infd.name, ln,
-                    state, line.rstrip())
+            LOG.log(VDEBUG, '%s:%d %s | %s',
+                    infd.name if hasattr(infd, 'name') else '<none>',
+                    ln,
+                    state,
+                    line.rstrip())
 
             if oldstate != state:
                 LOG.debug('%s -> %s', oldstate, state)
