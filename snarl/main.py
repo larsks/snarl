@@ -183,14 +183,13 @@ def main(verbose):
 
 @main.command()
 @click.option('-o', '--output-path', type=Path, default=Path('.'))
-@click.option('-f', '--file', 'onlyfile', multiple=True)
 @click.option('-w', '--overwrite', is_flag=True,
               envvar='SNARL_OVERWRITE')
 @click.argument('infile',
                 type=click.File(),
                 default=sys.stdin)
 @click.argument('block', nargs=-1)
-def tangle(output_path, onlyfile, overwrite, infile, block):
+def tangle(output_path, overwrite, infile, block):
     with infile:
         snarl = Snarl()
         snarl.parse(infile)
