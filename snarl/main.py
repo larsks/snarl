@@ -202,31 +202,37 @@ def main(verbose):
 @click.option('-o', '--output-path', type=Path, default=Path('.'))
 @click.option('-w', '--overwrite', is_flag=True,
               envvar='SNARL_OVERWRITE')
+@click.option('--stdout', '-s', is_flag=True)
 @click.argument('infile',
                 type=click.File(),
                 default=sys.stdin)
 @click.argument('block', nargs=-1)
-def tangle(output_path, overwrite, infile, block):
+def tangle(stdout, output_path, overwrite, infile, block):
     with infile:
         snarl = Snarl()
         snarl.parse(infile)
 
     to_generate = block if block else snarl.files
     for fn in to_generate:
-        fpath = output_path / fn
-
-        if fpath.is_file() and not overwrite:
-            LOG.error('refusing to overwrite existing file %s', fpath)
-            continue
-
         try:
             src = snarl.generate(fn)
+        except KeyError:
+            raise click.ClickException(f'No such block named "{fn}"')
+
+        if stdout:
+            for line in src:
+                sys.stdout.write(line)
+        else:
+            fpath = output_path / fn
+
+            if fpath.is_file() and not overwrite:
+                LOG.error('refusing to overwrite existing file %s', fpath)
+                continue
+
             with fpath.open('w') as fd:
                 LOG.info('writing file %s', fpath)
                 for line in src:
                     fd.write(line)
-        except KeyError:
-            raise click.ClickException(f'No such block named "{fn}"')
 
 
 @main.command()
