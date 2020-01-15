@@ -76,3 +76,14 @@ def test_hide_block(snarlobj):
 
     snarlobj.parse(doc)
     assert 'This should not appear in weave output' not in '\n'.join(snarlobj.output)
+
+
+def test_append_block(snarlobj):
+    doc = NamedBuffer('```=block0\n'
+                      'this is line1\n'
+                      '```\n\n'
+                      '```+=block0\n'
+                      'this is line2\n'
+                      '```\n')
+    snarlobj.parse(doc)
+    assert 'this is line2' in '\n'.join(snarlobj.generate('block0'))

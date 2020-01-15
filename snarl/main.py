@@ -14,7 +14,7 @@ LOG = logging.getLogger(__name__)
 VDEBUG = 5
 logging.addLevelName(VDEBUG, 'VDEBUG')
 
-re_start_codeblock = re.compile(r'^```(?P<lang>\w+)?=(?P<args>.+)')
+re_start_codeblock = re.compile(r'^```(?P<lang>\w+)?(?P<append>\+)?=(?P<args>.+)')
 re_end_codeblock = re.compile(r'^```$')
 re_include_block = re.compile(r'^<<(?P<label>.+)>>$')
 re_include_file = re.compile(r'^<!-- i(nclude)? (?P<path>\S+) -->$')
@@ -61,8 +61,12 @@ class Snarl(object):
             args.extend(['--lang', match.group('lang')])
         parsed_args = self.parser.parse_args(args)
 
-        LOG.debug('reading codeblock %s', parsed_args.label)
-        self._block = self.new_block(parsed_args.label, parsed_args)
+        if match.group('append'):
+            LOG.debug('appending to codeblock %s', parsed_args.label)
+            self._block = self._blocks[parsed_args.label]
+        else:
+            LOG.debug('reading codeblock %s', parsed_args.label)
+            self._block = self.new_block(parsed_args.label, parsed_args)
 
     def write_codeblock(self, block):
         block['fd'].seek(0)
@@ -99,6 +103,7 @@ class Snarl(object):
 
     def parse(self, infd, depth=0):
         state = STATE.INIT
+        oldstate = STATE.INIT
 
         if depth >= MAX_INCLUDE_DEPTH:
             raise RecursiveIncludeError(depth)
@@ -106,14 +111,15 @@ class Snarl(object):
         for ln, line in enumerate(infd):
             LOG.log(VDEBUG, '%s:%d %s | %s', infd.name, ln,
                     state, line.rstrip())
+
+            if oldstate != state:
+                LOG.debug('%s -> %s', oldstate, state)
+                oldstate = state
+
             if state == STATE.INIT:
-                newstate, content = self.process_line(line, depth)
+                state, content = self.process_line(line, depth)
                 if content is not None:
                     self.outfd.write(content)
-
-                if newstate != state:
-                    LOG.debug('%s -> %s', state, newstate)
-                    state = newstate
 
                 continue
 
