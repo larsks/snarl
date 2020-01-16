@@ -5,8 +5,8 @@ import string
 
 from unittest import mock
 
-import snarl.main
 import snarl.exc
+import snarl.main
 
 
 @pytest.fixture(scope='function')
@@ -53,7 +53,7 @@ def test_file(snarlobj, randomstring):
                      '```'))
 
     snarlobj.parse(doc)
-    assert 'output.txt' in snarlobj.files
+    assert 'output.txt' in snarlobj.files()
     assert randomstring in ''.join(snarlobj.generate('output.txt'))
 
 
@@ -93,7 +93,7 @@ def test_replace(snarlobj):
 
     snarlobj.parse(doc)
     assert 'gizmos' in '\n'.join(snarlobj.generate('block0'))
-                    
+
 
 def test_unknown_block_arg(snarlobj):
     doc = '\n'.join((
@@ -102,3 +102,19 @@ def test_unknown_block_arg(snarlobj):
 
     with pytest.raises(snarl.exc.BlockArgumentError):
         snarlobj.parse(doc)
+
+
+def test_tags(snarlobj):
+    doc = '\n'.join(('```=block0 -t foo',
+                     'This is block0',
+                     '```',
+                     '',
+                     '```=block1 -t bar',
+                     'This is block1',
+                     '```'))
+
+    snarlobj.parse(doc)
+    assert 'block0' in snarlobj.blocks(tags=['foo'])
+    assert 'block1' not in snarlobj.blocks(tags=['foo'])
+    assert 'block1' in snarlobj.blocks(tags=['bar'])
+    assert 'block0' not in snarlobj.blocks(tags=['bar'])

@@ -174,14 +174,17 @@ class Snarl(object):
         block = self._blocks[label]
         return _generate_block(block['fd'], block['config'].replace)
 
-    @property
-    def blocks(self):
-        return self._blocks.keys()
+    def blocks(self, tags=None):
+        return [k for k in self._blocks.keys()
+                if not tags
+                or any(t in self._blocks[k]['config'].tag for t in tags)]
 
-    @property
-    def files(self):
-        return [k for k, v in self._blocks.items()
-                if v['config'].file]
+    def files(self, tags=None):
+        return [k for k in self._blocks.keys()
+                if self._blocks[k]['config'].file and (
+                    not tags
+                    or any(t in self._blocks[k]['config'].tag for t in tags)
+                )]
 
     @property
     def output(self):
@@ -216,15 +219,23 @@ def main(verbose):
 @click.option('-w', '--overwrite', is_flag=True,
               envvar='SNARL_OVERWRITE')
 @click.option('--stdout', '-s', is_flag=True)
+@click.option('--all', '-a', 'all_blocks', is_flag=True)
+@click.option('--tag', '-t', multiple=True)
 @click.argument('infile',
                 type=click.File(),
                 default=sys.stdin)
 @click.argument('block', nargs=-1)
-def tangle(stdout, output_path, overwrite, infile, block):
+def tangle(stdout, output_path, overwrite, all_blocks, tag, infile, block):
     with infile:
         snarl = parse(infile)
 
-    to_generate = block if block else snarl.files
+    if block:
+        to_generate = block
+    elif all_blocks:
+        to_generate = snarl.blocks(tag)
+    else:
+        to_generate = snarl.files(tag)
+
     for fn in to_generate:
         try:
             src = snarl.generate(fn)
@@ -265,17 +276,18 @@ def weave(outfile, infile):
 
 @main.command()
 @click.option('--all', '-a', 'show_all_blocks', is_flag=True)
+@click.option('--tag', '-t', multiple=True)
 @click.argument('infile',
                 type=click.File(),
                 default=sys.stdin)
-def files(show_all_blocks, infile):
+def files(show_all_blocks, tag, infile):
     with infile:
         snarl = parse(infile)
 
     if show_all_blocks:
-        print('\n'.join(snarl.blocks))
+        print('\n'.join(snarl.blocks(tag)))
     else:
-        print('\n'.join(snarl.files))
+        print('\n'.join(snarl.files(tag)))
 
 
 if __name__ == '__main__':
