@@ -1,6 +1,7 @@
 import argparse
 import click
 import enum
+import html
 import io
 import logging
 import re
@@ -20,7 +21,7 @@ logging.addLevelName(VDEBUG, 'VDEBUG')
 re_start_codeblock = re.compile(r'^```(?P<lang>\w+)?(?P<append>\+)?=(?P<args>.+)')
 re_end_codeblock = re.compile(r'^```$')
 re_include_block = re.compile(r'^<<(?P<label>.+)>>$')
-re_include_file = re.compile(r'^<!-- i(nclude)? (?P<path>\S+) -->$')
+re_include_file = re.compile(r'^<!-- i(nclude)? (?P<args>.*) -->$')
 
 
 class STATE(enum.Enum):
@@ -34,7 +35,7 @@ class Context(object):
         self.line = line
 
 
-class BlockArgumentParser(argparse.ArgumentParser):
+class ArgumentParser(argparse.ArgumentParser):
     def error(self, message):
         raise snarl.exc.BlockArgumentError(message)
 
@@ -44,11 +45,12 @@ class Snarl(object):
         self._blocks = {}
 
         self.outfd = tempfile.SpooledTemporaryFile(mode='w')
-        self.parser = self.create_argument_parser()
+        self.block_parser = self.create_block_parser()
+        self.include_parser = self.create_include_parser()
         self.ctx = Context()
 
-    def create_argument_parser(self):
-        p = BlockArgumentParser()
+    def create_block_parser(self):
+        p = ArgumentParser()
         p.add_argument('--hide', '-H', action='store_true')
         p.add_argument('--file', '-f', action='store_true')
         p.add_argument('--tag', '-t', action='append', default=[])
@@ -57,11 +59,18 @@ class Snarl(object):
         p.add_argument('label')
         return p
 
+    def create_include_parser(self):
+        p = ArgumentParser()
+        p.add_argument('--escape-html', '-e', action='store_true')
+        p.add_argument('--verbatim', '-v', action='store_true')
+        p.add_argument('path')
+        return p
+
     def start_codeblock(self, match):
         args = shlex.split(match.group('args'))
         if match.group('lang'):
             args.extend(['--lang', match.group('lang')])
-        parsed_args = self.parser.parse_args(args)
+        parsed_args = self.block_parser.parse_args(args)
 
         if match.group('append'):
             LOG.debug('appending to codeblock %s', parsed_args.label)
@@ -80,10 +89,26 @@ class Snarl(object):
         self.outfd.write('```\n')
 
     def include_file(self, match, depth):
-        path = match.group('path')
-        LOG.info('including file %s', path)
-        with open(path, 'r') as fd:
-            self.parse(fd, depth+1)
+        def _html_escaper(fd):
+            for line in fd:
+                yield html.escape(line)
+
+        args = shlex.split(match.group('args'))
+        parsed_args = self.include_parser.parse_args(args)
+
+        LOG.info('including file %s', parsed_args.path)
+        with open(parsed_args.path, 'r') as fd:
+            if parsed_args.escape_html:
+                fd = _html_escaper(fd)
+
+            if parsed_args.verbatim:
+                self.include_verbatim(fd)
+            else:
+                self.parse(fd, depth+1)
+
+    def include_verbatim(self, fd):
+        for line in fd:
+            self.outfd.write(line)
 
     def process_line(self, line, depth):
         match = re_start_codeblock.match(line)
@@ -157,6 +182,7 @@ class Snarl(object):
             for line in fd:
                 match = re_include_block.match(line)
                 if match:
+                    LOG.debug('including block %s', match.group('label'))
                     yield from self.generate(match.group('label'))
                 else:
                     for pat, sub in replaces:
