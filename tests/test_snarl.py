@@ -40,7 +40,7 @@ def test_include_simple(snarlobj, randomstring):
 
     with mock.patch('snarl.main.open', create=True) as mock_open:
         mock_open.side_effect = lambda x, y: child
-        snarlobj.parse(parent)
+        snarlobj.fromstring(parent)
         assert randomstring in '\n'.join(snarlobj.output)
 
 
@@ -52,7 +52,7 @@ def test_file(snarlobj, randomstring):
                      '<<block0>>',
                      '```'))
 
-    snarlobj.parse(doc)
+    snarlobj.fromstring(doc)
     assert 'output.txt' in snarlobj.files()
     assert randomstring in ''.join(snarlobj.generate('output.txt'))
 
@@ -62,7 +62,7 @@ def test_lang_block(snarlobj):
                      'print("This is a test")',
                      '```'))
 
-    snarlobj.parse(doc)
+    snarlobj.fromstring(doc)
     assert '```python' in '\n'.join(snarlobj.output)
 
 
@@ -71,7 +71,7 @@ def test_hide_block(snarlobj):
                      'This should not appear in weave output',
                      '```'))
 
-    snarlobj.parse(doc)
+    snarlobj.fromstring(doc)
     assert 'This should not appear in weave output' not in '\n'.join(snarlobj.output)
 
 
@@ -82,7 +82,7 @@ def test_append_block(snarlobj):
                      '```+=block0',
                      'this is line2',
                      '```'))
-    snarlobj.parse(doc)
+    snarlobj.fromstring(doc)
     assert 'this is line2' in '\n'.join(snarlobj.generate('block0'))
 
 
@@ -91,7 +91,7 @@ def test_replace(snarlobj):
                      'An article about gadgets.',
                      '```'))
 
-    snarlobj.parse(doc)
+    snarlobj.fromstring(doc)
     assert 'gizmos' in '\n'.join(snarlobj.generate('block0'))
 
 
@@ -101,7 +101,7 @@ def test_unknown_block_arg(snarlobj):
     ))
 
     with pytest.raises(snarl.exc.BlockArgumentError):
-        snarlobj.parse(doc)
+        snarlobj.fromstring(doc)
 
 
 def test_tags(snarlobj):
@@ -113,7 +113,7 @@ def test_tags(snarlobj):
                      'This is block1',
                      '```'))
 
-    snarlobj.parse(doc)
+    snarlobj.fromstring(doc)
     assert 'block0' in snarlobj.blocks(tags=['foo'])
     assert 'block1' not in snarlobj.blocks(tags=['foo'])
     assert 'block1' in snarlobj.blocks(tags=['bar'])

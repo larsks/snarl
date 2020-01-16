@@ -98,12 +98,10 @@ class Snarl(object):
 
         return (STATE.INIT, line)
 
-    def parse(self, src, depth=0):
-        if hasattr(src, 'read'):
-            infd = src
-        else:
-            infd = io.StringIO(src)
+    def fromstring(self, s):
+        return self.parse(io.StringIO(s))
 
+    def parse(self, infd, depth=0):
         state = STATE.INIT
         oldstate = STATE.INIT
 
