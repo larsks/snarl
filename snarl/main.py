@@ -187,12 +187,12 @@ class Snarl(object):
 
 def parse(infile):
     try:
-        snarl = Snarl()
-        snarl.parse(infile)
+        snarlobj = Snarl()
+        snarlobj.parse(infile)
     except snarl.exc.SnarlError as err:
         raise click.ClickException(f'Parsing failed at line {snarl.ctx.ln}: {err}')
     else:
-        return snarl
+        return snarlobj
 
 
 @click.group()
@@ -220,18 +220,18 @@ def main(verbose):
 @click.argument('block', nargs=-1)
 def tangle(stdout, output_path, overwrite, all_blocks, tag, infile, block):
     with infile:
-        snarl = parse(infile)
+        snarlobj = parse(infile)
 
     if block:
         to_generate = block
     elif all_blocks:
-        to_generate = snarl.blocks(tag)
+        to_generate = snarlobj.blocks(tag)
     else:
-        to_generate = snarl.files(tag)
+        to_generate = snarlobj.files(tag)
 
     for fn in to_generate:
         try:
-            src = snarl.generate(fn)
+            src = snarlobj.generate(fn)
         except KeyError:
             raise click.ClickException(f'No such block named "{fn}"')
 
@@ -260,10 +260,10 @@ def tangle(stdout, output_path, overwrite, all_blocks, tag, infile, block):
                 default=sys.stdin)
 def weave(outfile, infile):
     with infile:
-        snarl = parse(infile)
+        snarlobj = parse(infile)
 
     with outfile:
-        for line in snarl.output:
+        for line in snarlobj.output:
             outfile.write(line)
 
 
@@ -275,12 +275,12 @@ def weave(outfile, infile):
                 default=sys.stdin)
 def files(show_all_blocks, tag, infile):
     with infile:
-        snarl = parse(infile)
+        snarlobj = parse(infile)
 
     if show_all_blocks:
-        print('\n'.join(snarl.blocks(tag)))
+        print('\n'.join(snarlobj.blocks(tag)))
     else:
-        print('\n'.join(snarl.files(tag)))
+        print('\n'.join(snarlobj.files(tag)))
 
 
 if __name__ == '__main__':
