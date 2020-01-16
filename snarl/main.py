@@ -86,11 +86,6 @@ class Snarl(object):
             self.parse(fd, depth+1)
 
     def process_line(self, line, depth):
-        if line.startswith(':'):
-            if line.startswith('::'):
-                line = line[1:]
-                return (STATE.INIT, line)
-
         match = re_start_codeblock.match(line)
         if match:
             self.start_codeblock(match)
