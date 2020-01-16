@@ -3,6 +3,7 @@ import click
 import enum
 import html
 import io
+import itertools
 import logging
 import re
 import shlex
@@ -18,9 +19,9 @@ LOG = logging.getLogger(__name__)
 VDEBUG = 5
 logging.addLevelName(VDEBUG, 'VDEBUG')
 
-re_start_codeblock = re.compile(r'^```(?P<lang>\w+)?(?P<append>\+)?=(?P<args>.+)')
+re_start_codeblock = re.compile(r'^```(?P<lang>\w+)?((?P<append>\+)?=(?P<args>.+))?')
 re_end_codeblock = re.compile(r'^```$')
-re_include_block = re.compile(r'^<<(?P<label>.+)>>$')
+re_include_block = re.compile(r'^\s*<<(?P<label>.+)>>$')
 re_include_file = re.compile(r'^<!-- i(nclude)? (?P<args>.*) -->$')
 
 
@@ -48,6 +49,7 @@ class Snarl(object):
         self.block_parser = self.create_block_parser()
         self.include_parser = self.create_include_parser()
         self.ctx = Context()
+        self.blocknum = itertools.count()
 
     def create_block_parser(self):
         p = ArgumentParser()
@@ -56,7 +58,7 @@ class Snarl(object):
         p.add_argument('--tag', '-t', action='append', default=[])
         p.add_argument('--replace', '-r', nargs=2, action='append', default=[])
         p.add_argument('--lang')
-        p.add_argument('label')
+        p.add_argument('label', nargs='?')
         return p
 
     def create_include_parser(self):
@@ -67,10 +69,13 @@ class Snarl(object):
         return p
 
     def start_codeblock(self, match):
-        args = shlex.split(match.group('args'))
+        args = shlex.split(match.group('args') or '')
         if match.group('lang'):
             args.extend(['--lang', match.group('lang')])
         parsed_args = self.block_parser.parse_args(args)
+
+        if not parsed_args.label:
+            parsed_args.label = '__autoblock{}'.format(next(self.blocknum))
 
         if match.group('append'):
             LOG.debug('appending to codeblock %s', parsed_args.label)
