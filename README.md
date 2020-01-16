@@ -54,7 +54,18 @@ int main() {
 Include files with the `<!-- include ... -->` directive:
 
 ```
-<!-- include some_file.md -->
+<!-- include *path* [--escape-html] [--verbatim] -->
 ```
 
 The contents of the named file will be processed as if it occurred in the main document at the point of the `<!-- include ... -->` directive. This means you can include `snarl` syntax in your included files.
+
+The following options are available:
+
+- `--escape-html` -- escape characters that will cause problems when rendered to HTML (such as `<` and `&`).
+- `--verbatim` -- insert the content without processing it for snarl directives.
+
+## See also
+
+- I wrote a [blog post][] about this tool.
+
+[blog post]: https://blog.oddbit.com/post/2020-01-15-snarl-a-tool-for-literate-blog/
