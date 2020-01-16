@@ -1,8 +1,8 @@
+import argparse
 import click
 import enum
 import io
 import logging
-import argparse
 import re
 import shlex
 import sys
