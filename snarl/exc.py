@@ -8,3 +8,7 @@ class RecursiveIncludeError(SnarlError):
 
 class BlockArgumentError(SnarlError):
     pass
+
+
+class UnexpectedEOFError(SnarlError):
+    pass

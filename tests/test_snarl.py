@@ -160,3 +160,13 @@ def test_tags(snarlobj):
     assert 'block1' not in snarlobj.blocks(tags=['foo'])
     assert 'block1' in snarlobj.blocks(tags=['bar'])
     assert 'block0' not in snarlobj.blocks(tags=['bar'])
+
+
+def test_unterminated_block(snarlobj):
+    doc = '\n'.join((
+        '```block0',
+        'This block has no end marker.',
+    ))
+
+    with pytest.raises(snarl.exc.UnexpectedEOFError):
+        snarlobj.fromstring(doc)

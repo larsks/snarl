@@ -184,7 +184,7 @@ class Snarl(object):
                 self._block['fd'].write(line)
 
         if state != STATE.INIT:
-            raise ValueError(state)
+            raise snarl.exc.UnexpectedEOFError('Unexpected end-of-file')
 
     def new_block(self, name, config):
         LOG.debug('create block %s', name)
