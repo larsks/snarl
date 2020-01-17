@@ -14,12 +14,6 @@ def snarlobj():
     return snarl.main.Snarl()
 
 
-@pytest.fixture(scope='function')
-def randomstring():
-    letters = string.ascii_lowercase
-    return ''.join(random.choice(letters) for i in range(10))
-
-
 def test_include_recursive(snarlobj):
     def doc():
         data = '\n'.join(('This is a test',
@@ -34,19 +28,39 @@ def test_include_recursive(snarlobj):
             snarlobj.parse(doc())
 
 
-def test_include_simple(snarlobj, randomstring):
+def test_include_simple(snarlobj):
     parent = '<!-- include simple.snarl.md -->\n'
-    child = io.StringIO(randomstring)
+    child = io.StringIO('included document')
 
     with mock.patch('snarl.main.open', create=True) as mock_open:
         mock_open.side_effect = lambda x, y: child
         snarlobj.fromstring(parent)
-        assert randomstring in '\n'.join(snarlobj.output)
+        assert 'included document' in '\n'.join(snarlobj.output)
 
 
-def test_file(snarlobj, randomstring):
+def test_include_escape(snarlobj):
+    parent = '<!-- include simple.snarl.md --escape-html -->\n'
+    child = io.StringIO('<This is a test>')
+
+    with mock.patch('snarl.main.open', create=True) as mock_open:
+        mock_open.side_effect = lambda x, y: child
+        snarlobj.fromstring(parent)
+        assert '&lt;This is a test&gt;' in '\n'.join(snarlobj.output)
+
+
+def test_include_verbatim(snarlobj):
+    parent = '<!-- include simple.snarl.md --verbatim -->\n'
+    child = io.StringIO('<!-- include testfile -->')
+
+    with mock.patch('snarl.main.open', create=True) as mock_open:
+        mock_open.side_effect = lambda x, y: child
+        snarlobj.fromstring(parent)
+        assert '<!-- include testfile -->' in '\n'.join(snarlobj.output)
+
+
+def test_file(snarlobj):
     doc = '\n'.join(('```=block0',
-                     f'{randomstring}',
+                     f'This is block0.',
                      '```',
                      '```=output.txt --file',
                      '<<block0>>',
@@ -54,7 +68,7 @@ def test_file(snarlobj, randomstring):
 
     snarlobj.fromstring(doc)
     assert 'output.txt' in snarlobj.files()
-    assert randomstring in ''.join(snarlobj.generate('output.txt'))
+    assert 'This is block0.' in ''.join(snarlobj.generate('output.txt'))
 
 
 def test_lang_block(snarlobj):
