@@ -19,7 +19,7 @@ Snarl is a [literate programming][] tool for Markdown documents.
 Code blocks are defined using a modified version the standard Markdown syntax for fenced code blocks:
 
 <pre>
-```[lang]=label [--hide] [--file] [--replace *pattern* *substitution*] [-t tag [...]]
+```[lang]=label [options]
 ...your code goes here...
 ```
 </pre>
@@ -34,6 +34,8 @@ The following options are available:
   _pattern_ with _subsitution_.
 - `--tag *tag*` -- assign a tag to a block, which can be used to select sets
   of files when tangling. May be specified multiple times.
+- `--escape-html` -- escape characters in the code block that would cause undesirable behavior when rendered to HTML.
+- `--verbatim` -- do not process `<<...>>` blocks in the code block
 
 There is alternate syntax used to append content to an existing code block:
 

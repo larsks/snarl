@@ -41,6 +41,11 @@ class ArgumentParser(argparse.ArgumentParser):
         raise snarl.exc.BlockArgumentError(message)
 
 
+def html_escaper(fd):
+    for line in fd:
+        yield html.escape(line)
+
+
 class Snarl(object):
     def __init__(self):
         self._blocks = {}
@@ -57,6 +62,8 @@ class Snarl(object):
         p.add_argument('--file', '-f', action='store_true')
         p.add_argument('--tag', '-t', action='append', default=[])
         p.add_argument('--replace', '-r', nargs=2, action='append', default=[])
+        p.add_argument('--escape-html', action='store_true')
+        p.add_argument('--verbatim', action='store_true')
         p.add_argument('--lang')
         p.add_argument('label', nargs='?')
         return p
@@ -85,26 +92,31 @@ class Snarl(object):
             self._block = self.new_block(parsed_args.label, parsed_args)
 
     def write_codeblock(self, block):
-        block['fd'].seek(0)
+        '''Write a code block into the generated document when weaving'''
+
         lang = block['config'].lang
         self.outfd.write('```{}\n'.format(
             lang if lang is not None else ''
         ))
-        self.outfd.write(block['fd'].read())
+
+        fd = block['fd']
+        fd.seek(0)
+
+        if block['config'].escape_html:
+            fd = html_escaper(block['fd'])
+
+        for line in fd:
+            self.outfd.write(line)
         self.outfd.write('```\n')
 
     def include_file(self, match, depth):
-        def _html_escaper(fd):
-            for line in fd:
-                yield html.escape(line)
-
         args = shlex.split(match.group('args'))
         parsed_args = self.include_parser.parse_args(args)
 
         LOG.info('including file %s', parsed_args.path)
         with open(parsed_args.path, 'r') as fd:
             if parsed_args.escape_html:
-                fd = _html_escaper(fd)
+                fd = html_escaper(fd)
 
             if parsed_args.verbatim:
                 self.include_verbatim(fd)
@@ -181,22 +193,29 @@ class Snarl(object):
         return self._blocks[name]
 
     def generate(self, label):
-        def _generate_block(fd, replaces):
+        '''Return an iterator for the lines of a code block.
+
+        This method is used when weaving. It takes care of interpreting
+        `<<blockname>>` markers.
+        '''
+
+        def _generate_block(block):
+            fd = block['fd']
             fd.seek(0)
 
             for line in fd:
                 match = re_include_block.match(line)
-                if match:
+                if match and not block['config'].verbatim:
                     LOG.debug('including block %s', match.group('label'))
                     yield from self.generate(match.group('label'))
                 else:
-                    for pat, sub in replaces:
+                    for pat, sub in block['config'].replace:
                         LOG.debug('replacing %s with %s in %s', pat, sub, line.strip())
                         line = re.sub(pat, sub, line)
                     yield line
 
         block = self._blocks[label]
-        return _generate_block(block['fd'], block['config'].replace)
+        return _generate_block(block)
 
     def blocks(self, tags=None):
         return [k for k in self._blocks.keys()

@@ -89,6 +89,34 @@ def test_hide_block(snarlobj):
     assert 'This should not appear in weave output' not in '\n'.join(snarlobj.output)
 
 
+def test_block_escape(snarlobj):
+    doc = '\n'.join(('```=block0 --escape-html',
+                     '<This is a test>',
+                     '```'))
+
+    snarlobj.fromstring(doc)
+    assert '&lt;This is a test&gt;' in '\n'.join(snarlobj.output)
+
+
+def test_block_verbatim(snarlobj):
+    doc = '\n'.join(('```=block0 --verbatim',
+                     '<<This is a test>>',
+                     '```'))
+
+    snarlobj.fromstring(doc)
+    assert '<<This is a test>>' in '\n'.join(snarlobj.output)
+
+
+def test_block_unknown(snarlobj):
+    doc = '\n'.join(('```=block0',
+                     '<<This is a test>>',
+                     '```'))
+
+    snarlobj.fromstring(doc)
+    with pytest.raises(KeyError):
+        '\n'.join(snarlobj.generate('block0'))
+
+
 def test_append_block(snarlobj):
     doc = '\n'.join(('```=block0',
                      'this is line1',
