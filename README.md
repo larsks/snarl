@@ -16,7 +16,7 @@ Snarl is a [literate programming][] tool for Markdown documents.
 
 ### Code blocks
 
-Code blocks are defined using a modified version the standard Markdown syntax for fenced code blocks.
+Code blocks are defined using a modified version the standard Markdown syntax for fenced code blocks:
 
 <pre>
 ```[lang]=label [--hide] [--file] [--replace *pattern* *substitution*] [-t tag [...]]
@@ -24,7 +24,7 @@ Code blocks are defined using a modified version the standard Markdown syntax fo
 ```
 </pre>
 
-Everything after the `=` is stripped when weaving, leaving a standard fenced code block.
+Everything after the `=` (or `+=`) is stripped when weaving, leaving a standard fenced code block.
 
 The following options are available:
 
@@ -34,6 +34,16 @@ The following options are available:
   _pattern_ with _subsitution_.
 - `--tag *tag*` -- assign a tag to a block, which can be used to select sets
   of files when tangling. May be specified multiple times.
+
+There is alternate syntax used to append content to an existing code block:
+
+<pre>
+```[lang]+=label
+...your code goes here...
+```
+</pre>
+
+You can't set options on an appended block (it becomes part of the previously declared block).
 
 To include content from one code block in another code block when tangling, refer to it using `<<...>>` markers. For example:
 
@@ -48,6 +58,7 @@ int main() {
 }
 ```
 </pre>
+
 
 ### Including files
 
