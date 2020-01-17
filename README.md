@@ -18,11 +18,9 @@ Snarl is a [literate programming][] tool for Markdown documents.
 
 Code blocks are defined using a modified version the standard Markdown syntax for fenced code blocks:
 
-<pre>
-```[lang]=label [options]
-...your code goes here...
-```
-</pre>
+    ```[lang]=label [options]
+    ...your code goes here...
+    ```
 
 Everything after the `=` (or `+=`) is stripped when weaving, leaving a standard fenced code block.
 
@@ -39,27 +37,21 @@ The following options are available:
 
 There is alternate syntax used to append content to an existing code block:
 
-<pre>
-```[lang]+=label
-...your code goes here...
-```
-</pre>
+    ```[lang]+=label
+    ...your code goes here...
+    ```
 
 You can't set options on an appended block (it becomes part of the previously declared block).
 
 To include content from one code block in another code block when tangling, refer to it using `<<...>>` markers. For example:
 
-<!-- Since I'm using <pre> blocks to wrap the markdown example, I need to escape
-     all instances of < with &gt;. -->
-<pre>
-```=hello.c --file
-&lt;&lt;includes>>
+    ```=hello.c --file
+    <<includes>>
 
-int main() {
-&lt;&lt;body of main function>>
-}
-```
-</pre>
+    int main() {
+    <<body of main function>>
+    }
+    ```
 
 
 ### Including files
