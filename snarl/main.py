@@ -31,9 +31,10 @@ class STATE(enum.Enum):
 
 
 class Context(object):
-    def __init__(self, ln=0, line=None):
+    def __init__(self, ln=0, line=None, block=None):
         self.ln = ln
         self.line = line
+        block = block
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -86,10 +87,10 @@ class Snarl(object):
 
         if match.group('append'):
             LOG.debug('appending to codeblock %s', parsed_args.label)
-            self._block = self._blocks[parsed_args.label]
+            self.ctx.block = self._blocks[parsed_args.label]
         else:
             LOG.debug('reading codeblock %s', parsed_args.label)
-            self._block = self.new_block(parsed_args.label, parsed_args)
+            self.ctx.block = self.new_block(parsed_args)
 
     def write_codeblock(self, block):
         '''Write a code block into the generated document when weaving'''
@@ -176,21 +177,22 @@ class Snarl(object):
                 if match:
                     state = STATE.INIT
 
-                    if not self._block['config'].hide:
-                        self.write_codeblock(self._block)
+                    if not self.ctx.block['config'].hide:
+                        self.write_codeblock(self.ctx.block)
 
                     continue
 
-                self._block['fd'].write(line)
+                self.ctx.block['fd'].write(line)
 
         if state != STATE.INIT:
             raise snarl.exc.UnexpectedEOFError('Unexpected end-of-file')
 
-    def new_block(self, name, config):
-        LOG.debug('create block %s', name)
+    def new_block(self, config):
+        label = config.label
+        LOG.debug('create block %s', label)
         fd = tempfile.SpooledTemporaryFile(mode='w')
-        self._blocks[name] = dict(fd=fd, config=config)
-        return self._blocks[name]
+        self._blocks[label] = dict(fd=fd, config=config)
+        return self._blocks[label]
 
     def generate(self, label):
         '''Return an iterator for the lines of a code block.
