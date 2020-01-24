@@ -48,7 +48,7 @@ def html_escaper(fd):
 
 
 class Snarl(object):
-    def __init__(self):
+    def __init__(self, ignore_missing=False):
         self._blocks = {}
 
         self.outfd = tempfile.SpooledTemporaryFile(mode='w')
@@ -56,6 +56,7 @@ class Snarl(object):
         self.include_parser = self.create_include_parser()
         self.ctx = Context()
         self.blocknum = itertools.count()
+        self.ignore_missing = ignore_missing
 
     def create_block_parser(self):
         p = ArgumentParser()
@@ -115,14 +116,20 @@ class Snarl(object):
         parsed_args = self.include_parser.parse_args(args)
 
         LOG.info('including file %s', parsed_args.path)
-        with open(parsed_args.path, 'r') as fd:
-            if parsed_args.escape_html:
-                fd = html_escaper(fd)
+        try:
+            with open(parsed_args.path, 'r') as fd:
+                if parsed_args.escape_html:
+                    fd = html_escaper(fd)
 
-            if parsed_args.verbatim:
-                self.include_verbatim(fd)
+                if parsed_args.verbatim:
+                    self.include_verbatim(fd)
+                else:
+                    self.parse(fd, depth+1)
+        except FileNotFoundError:
+            if self.ignore_missing:
+                LOG.error(f'ignorning missing include file "{parsed_args.path}"')
             else:
-                self.parse(fd, depth+1)
+                raise
 
     def include_verbatim(self, fd):
         for line in fd:
@@ -237,19 +244,11 @@ class Snarl(object):
         return self.outfd
 
 
-def parse(infile):
-    try:
-        snarlobj = Snarl()
-        snarlobj.parse(infile)
-    except snarl.exc.SnarlError as err:
-        raise click.ClickException(f'Parsing failed at line {snarl.ctx.ln}: {err}')
-    else:
-        return snarlobj
-
-
 @click.group()
 @click.option('-v', '--verbose', count=True)
-def main(verbose):
+@click.option('--ignore-missing', '-i', is_flag=True)
+@click.pass_context
+def main(ctx, verbose, ignore_missing):
     try:
         loglevel = [logging.WARNING, logging.INFO,
                     logging.DEBUG, VDEBUG][verbose]
@@ -257,6 +256,8 @@ def main(verbose):
         loglevel = logging.DEBUG
 
     logging.basicConfig(level=loglevel)
+
+    ctx.obj = Snarl(ignore_missing=ignore_missing)
 
 
 @main.command()
@@ -270,9 +271,16 @@ def main(verbose):
                 type=click.File(),
                 default=sys.stdin)
 @click.argument('block', nargs=-1)
-def tangle(stdout, output_path, overwrite, all_blocks, tag, infile, block):
+@click.pass_context
+def tangle(ctx, stdout, output_path, overwrite, all_blocks,
+           tag, infile, block):
+    snarlobj = ctx.obj
+
     with infile:
-        snarlobj = parse(infile)
+        try:
+            snarlobj.parse(infile)
+        except snarl.exc.SnarlError as err:
+            raise click.ClickException(f'Parsing failed at line {snarl.ctx.ln}: {err}')
 
     if block:
         to_generate = block
@@ -310,9 +318,15 @@ def tangle(stdout, output_path, overwrite, all_blocks, tag, infile, block):
 @click.argument('infile',
                 type=click.File(),
                 default=sys.stdin)
-def weave(outfile, infile):
+@click.pass_context
+def weave(ctx, outfile, infile):
+    snarlobj = ctx.obj
+
     with infile:
-        snarlobj = parse(infile)
+        try:
+            snarlobj.parse(infile)
+        except snarl.exc.SnarlError as err:
+            raise click.ClickException(f'Parsing failed at line {snarl.ctx.ln}: {err}')
 
     with outfile:
         for line in snarlobj.output:
@@ -325,9 +339,15 @@ def weave(outfile, infile):
 @click.argument('infile',
                 type=click.File(),
                 default=sys.stdin)
-def files(show_all_blocks, tag, infile):
+@click.pass_context
+def files(ctx, show_all_blocks, tag, infile):
+    snarlobj = ctx.obj
+
     with infile:
-        snarlobj = parse(infile)
+        try:
+            snarlobj.parse(infile)
+        except snarl.exc.SnarlError as err:
+            raise click.ClickException(f'Parsing failed at line {snarl.ctx.ln}: {err}')
 
     if show_all_blocks:
         print('\n'.join(snarlobj.blocks(tag)))
